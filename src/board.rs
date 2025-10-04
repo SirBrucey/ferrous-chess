@@ -15,6 +15,48 @@ impl Default for Board {
     }
 }
 
+impl<'a> IntoIterator for &'a Board {
+    type Item = Option<(Coordinate, Piece)>;
+    type IntoIter = BoardIterator<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        BoardIterator {
+            board: self,
+            row: 0,
+            col: 0,
+        }
+    }
+}
+
+pub(crate) struct BoardIterator<'a> {
+    board: &'a Board,
+    row: usize,
+    col: usize,
+}
+
+impl Iterator for BoardIterator<'_> {
+    type Item = Option<(Coordinate, Piece)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.row >= 8 {
+            return None;
+        }
+        let maybe_piece = self.board.squares[self.row][self.col];
+        self.col += 1;
+        if self.col >= 8 {
+            self.col = 0;
+            self.row += 1;
+        }
+
+        Some(maybe_piece.map(|piece| {
+            (
+                Coordinate::new_unchecked(self.col as u8 - 1, self.row as u8),
+                piece,
+            )
+        }))
+    }
+}
+
 const DEFAULT_BOARD: [[Option<Piece>; 8]; 8] = [
     [
         Some(Piece::rook(Colour::White)),
@@ -1544,5 +1586,69 @@ mod tests {
         for m in moves {
             assert!(expected.contains(&m));
         }
+    }
+
+    fn board_iteration() {
+        assert_eq!(
+            Board::default().into_iter().flatten().collect::<Vec<_>>(),
+            vec![
+                (Coordinate::new_unchecked(0, 0), Piece::rook(Colour::White)),
+                (
+                    Coordinate::new_unchecked(1, 0),
+                    Piece::knight(Colour::White)
+                ),
+                (
+                    Coordinate::new_unchecked(2, 0),
+                    Piece::bishop(Colour::White)
+                ),
+                (Coordinate::new_unchecked(3, 0), Piece::queen(Colour::White)),
+                (Coordinate::new_unchecked(4, 0), Piece::king(Colour::White)),
+                (
+                    Coordinate::new_unchecked(5, 0),
+                    Piece::bishop(Colour::White)
+                ),
+                (
+                    Coordinate::new_unchecked(6, 0),
+                    Piece::knight(Colour::White)
+                ),
+                (Coordinate::new_unchecked(7, 0), Piece::rook(Colour::White)),
+                (Coordinate::new_unchecked(0, 1), Piece::pawn(Colour::White)),
+                (Coordinate::new_unchecked(1, 1), Piece::pawn(Colour::White)),
+                (Coordinate::new_unchecked(2, 1), Piece::pawn(Colour::White)),
+                (Coordinate::new_unchecked(3, 1), Piece::pawn(Colour::White)),
+                (Coordinate::new_unchecked(4, 1), Piece::pawn(Colour::White)),
+                (Coordinate::new_unchecked(5, 1), Piece::pawn(Colour::White)),
+                (Coordinate::new_unchecked(6, 1), Piece::pawn(Colour::White)),
+                (Coordinate::new_unchecked(7, 1), Piece::pawn(Colour::White)),
+                (Coordinate::new_unchecked(0, 6), Piece::pawn(Colour::Black)),
+                (Coordinate::new_unchecked(1, 6), Piece::pawn(Colour::Black)),
+                (Coordinate::new_unchecked(2, 6), Piece::pawn(Colour::Black)),
+                (Coordinate::new_unchecked(3, 6), Piece::pawn(Colour::Black)),
+                (Coordinate::new_unchecked(4, 6), Piece::pawn(Colour::Black)),
+                (Coordinate::new_unchecked(5, 6), Piece::pawn(Colour::Black)),
+                (Coordinate::new_unchecked(6, 6), Piece::pawn(Colour::Black)),
+                (Coordinate::new_unchecked(7, 6), Piece::pawn(Colour::Black)),
+                (Coordinate::new_unchecked(0, 7), Piece::rook(Colour::Black)),
+                (
+                    Coordinate::new_unchecked(1, 7),
+                    Piece::knight(Colour::Black)
+                ),
+                (
+                    Coordinate::new_unchecked(2, 7),
+                    Piece::bishop(Colour::Black)
+                ),
+                (Coordinate::new_unchecked(3, 7), Piece::queen(Colour::Black)),
+                (Coordinate::new_unchecked(4, 7), Piece::king(Colour::Black)),
+                (
+                    Coordinate::new_unchecked(5, 7),
+                    Piece::bishop(Colour::Black)
+                ),
+                (
+                    Coordinate::new_unchecked(6, 7),
+                    Piece::knight(Colour::Black)
+                ),
+                (Coordinate::new_unchecked(7, 7), Piece::rook(Colour::Black))
+            ]
+        );
     }
 }
