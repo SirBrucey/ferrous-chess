@@ -149,6 +149,20 @@ impl Board {
         }))
     }
 
+    fn pseudo_bishop_moves(
+        &self,
+        position: &Coordinate,
+    ) -> Result<impl Iterator<Item = Coordinate>, String> {
+        self.validate_piece_for_move(position, crate::piece::PieceType::Bishop)?;
+        let vectors = [(1, 1), (1, -1), (-1, 1), (-1, -1)];
+        Ok(vectors.into_iter().flat_map(move |dir| RayIterator {
+            board: self,
+            current: *position,
+            direction: dir,
+            stopped: false,
+        }))
+    }
+
     fn is_board_legal(&self) -> bool {
         todo!()
     }
@@ -569,6 +583,146 @@ mod tests {
     }
 
     #[rstest]
+    #[case::middle(
+        Coordinate::new_unchecked(4, 4),
+        vec![
+            // Top-right
+            Coordinate::new_unchecked(5, 5),
+            Coordinate::new_unchecked(6, 6),
+            Coordinate::new_unchecked(7, 7),
+            // Top-left
+            Coordinate::new_unchecked(3, 5),
+            Coordinate::new_unchecked(2, 6),
+            Coordinate::new_unchecked(1, 7),
+            // Bottom-right
+            Coordinate::new_unchecked(5, 3),
+            Coordinate::new_unchecked(6, 2),
+            Coordinate::new_unchecked(7, 1),
+            // Bottom-left
+            Coordinate::new_unchecked(3, 3),
+            Coordinate::new_unchecked(2, 2),
+            Coordinate::new_unchecked(1, 1),
+            Coordinate::new_unchecked(0, 0),
+        ]
+    )]
+    #[case::bottom_left(
+        Coordinate::new_unchecked(0, 0),
+        vec![
+            // Top-right
+            Coordinate::new_unchecked(1, 1),
+            Coordinate::new_unchecked(2, 2),
+            Coordinate::new_unchecked(3, 3),
+            Coordinate::new_unchecked(4, 4),
+            Coordinate::new_unchecked(5, 5),
+            Coordinate::new_unchecked(6, 6),
+            Coordinate::new_unchecked(7, 7),
+        ]
+    )]
+    #[case::bottom_edge(
+        Coordinate::new_unchecked(4, 0),
+        vec![
+            // Top-right
+            Coordinate::new_unchecked(5, 1),
+            Coordinate::new_unchecked(6, 2),
+            Coordinate::new_unchecked(7, 3),
+            // Top-left
+            Coordinate::new_unchecked(3, 1),
+            Coordinate::new_unchecked(2, 2),
+            Coordinate::new_unchecked(1, 3),
+            Coordinate::new_unchecked(0, 4),
+        ]
+    )]
+    #[case::bottom_right(
+        Coordinate::new_unchecked(7, 0),
+        vec![
+            // Top-left
+            Coordinate::new_unchecked(6, 1),
+            Coordinate::new_unchecked(5, 2),
+            Coordinate::new_unchecked(4, 3),
+            Coordinate::new_unchecked(3, 4),
+            Coordinate::new_unchecked(2, 5),
+            Coordinate::new_unchecked(1, 6),
+            Coordinate::new_unchecked(0, 7),
+        ]
+    )]
+    #[case::left_middle(
+        Coordinate::new_unchecked(0, 4),
+        vec![
+            // Top-right
+            Coordinate::new_unchecked(1, 5),
+            Coordinate::new_unchecked(2, 6),
+            Coordinate::new_unchecked(3, 7),
+            // Bottom-right
+            Coordinate::new_unchecked(1, 3),
+            Coordinate::new_unchecked(2, 2),
+            Coordinate::new_unchecked(3, 1),
+            Coordinate::new_unchecked(4, 0),
+        ]
+    )]
+    #[case::right_middle(
+        Coordinate::new_unchecked(7, 4),
+        vec![
+            // Top-left
+            Coordinate::new_unchecked(6, 5),
+            Coordinate::new_unchecked(5, 6),
+            Coordinate::new_unchecked(4, 7),
+            // Bottom-left
+            Coordinate::new_unchecked(6, 3),
+            Coordinate::new_unchecked(5, 2),
+            Coordinate::new_unchecked(4, 1),
+            Coordinate::new_unchecked(3, 0),
+        ]
+    )]
+    #[case::top_left(
+        Coordinate::new_unchecked(0, 7),
+        vec![
+            // Bottom-right
+            Coordinate::new_unchecked(1, 6),
+            Coordinate::new_unchecked(2, 5),
+            Coordinate::new_unchecked(3, 4),
+            Coordinate::new_unchecked(4, 3),
+            Coordinate::new_unchecked(5, 2),
+            Coordinate::new_unchecked(6, 1),
+            Coordinate::new_unchecked(7, 0),
+        ]
+    )]
+    #[case::top_edge(
+        Coordinate::new_unchecked(4, 7),
+        vec![
+            // Top-right
+            Coordinate::new_unchecked(5, 6),
+            Coordinate::new_unchecked(6, 5),
+            Coordinate::new_unchecked(7, 4),
+            // Top-left
+            Coordinate::new_unchecked(3, 6),
+            Coordinate::new_unchecked(2, 5),
+            Coordinate::new_unchecked(1, 4),
+            Coordinate::new_unchecked(0, 3),
+        ]
+    )]
+    #[case::top_right(
+        Coordinate::new_unchecked(7, 7),
+        vec![
+            // Top-left
+            Coordinate::new_unchecked(6, 6),
+            Coordinate::new_unchecked(5, 5),
+            Coordinate::new_unchecked(4, 4),
+            Coordinate::new_unchecked(3, 3),
+            Coordinate::new_unchecked(2, 2),
+            Coordinate::new_unchecked(1, 1),
+            Coordinate::new_unchecked(0, 0),
+        ]
+    )]
+    fn bishop_moves(#[case] start: Coordinate, #[case] expected: Vec<Coordinate>) {
+        let board = mk_board(Piece::bishop(Colour::White), start);
+        let moves: Vec<Coordinate> = board.pseudo_bishop_moves(&start).unwrap().collect();
+        assert_eq!(moves.len(), expected.len());
+        for m in moves {
+            assert!(expected.contains(&m));
+        }
+    }
+
+    #[rstest]
     #[case::rook_blocked_by_friendly(
         crate::piece::PieceType::Rook,
         Coordinate::new_unchecked(2, 2),
@@ -609,6 +763,41 @@ mod tests {
             Coordinate::new_unchecked(4, 0),
         ]
     )]
+    #[case::bishop_blocked_by_friendly(
+        crate::piece::PieceType::Bishop,
+        Coordinate::new_unchecked(2, 2),
+        Coordinate::new_unchecked(4, 4),
+        Colour::White,
+        vec![
+            Coordinate::new_unchecked(3, 3),
+            Coordinate::new_unchecked(1, 3),
+            Coordinate::new_unchecked(0, 4),
+            Coordinate::new_unchecked(3, 1),
+            Coordinate::new_unchecked(4, 0),
+            Coordinate::new_unchecked(1, 1),
+            Coordinate::new_unchecked(0, 0),
+        ]
+    )]
+    #[case::bishop_captures_opponent(
+        crate::piece::PieceType::Bishop,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(6, 6),
+        Colour::Black,
+        vec![
+            Coordinate::new_unchecked(5, 5),
+            Coordinate::new_unchecked(6, 6),
+            Coordinate::new_unchecked(3, 5),
+            Coordinate::new_unchecked(2, 6),
+            Coordinate::new_unchecked(1, 7),
+            Coordinate::new_unchecked(5, 3),
+            Coordinate::new_unchecked(6, 2),
+            Coordinate::new_unchecked(7, 1),
+            Coordinate::new_unchecked(3, 3),
+            Coordinate::new_unchecked(2, 2),
+            Coordinate::new_unchecked(1, 1),
+            Coordinate::new_unchecked(0, 0),
+        ]
+    )]
     fn sliding_piece_moves_with_blocking(
         #[case] piece_type: crate::piece::PieceType,
         #[case] piece_position: Coordinate,
@@ -631,6 +820,10 @@ mod tests {
             crate::piece::PieceType::Rook => {
                 board.pseudo_rook_moves(&piece_position).unwrap().collect()
             }
+            crate::piece::PieceType::Bishop => board
+                .pseudo_bishop_moves(&piece_position)
+                .unwrap()
+                .collect(),
             _ => panic!("Piece type not yet supported in test"),
         };
 
