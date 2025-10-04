@@ -104,9 +104,10 @@ impl Board {
             Some(piece) if piece.colour != self.turn => {
                 Err("Not the turn of the piece at the given position".to_string())
             }
-            Some(piece) if piece.piece_type != expected_piece_type => {
-                Err(format!("The piece at the given position is not a {}", expected_piece_type))
-            }
+            Some(piece) if piece.piece_type != expected_piece_type => Err(format!(
+                "The piece at the given position is not a {}",
+                expected_piece_type
+            )),
             Some(piece) => Ok(piece),
             None => Err("No piece at the given position".to_string()),
         }
@@ -561,6 +562,78 @@ mod tests {
     fn rook_moves(#[case] start: Coordinate, #[case] expected: Vec<Coordinate>) {
         let board = mk_board(Piece::rook(Colour::White), start);
         let moves: Vec<Coordinate> = board.pseudo_rook_moves(&start).unwrap().collect();
+        assert_eq!(moves.len(), expected.len());
+        for m in moves {
+            assert!(expected.contains(&m));
+        }
+    }
+
+    #[rstest]
+    #[case::rook_blocked_by_friendly(
+        crate::piece::PieceType::Rook,
+        Coordinate::new_unchecked(2, 2),
+        Coordinate::new_unchecked(5, 2),
+        Colour::White,
+        vec![
+            Coordinate::new_unchecked(3, 2),
+            Coordinate::new_unchecked(4, 2),
+            Coordinate::new_unchecked(1, 2),
+            Coordinate::new_unchecked(0, 2),
+            Coordinate::new_unchecked(2, 3),
+            Coordinate::new_unchecked(2, 4),
+            Coordinate::new_unchecked(2, 5),
+            Coordinate::new_unchecked(2, 6),
+            Coordinate::new_unchecked(2, 7),
+            Coordinate::new_unchecked(2, 1),
+            Coordinate::new_unchecked(2, 0),
+        ]
+    )]
+    #[case::rook_captures_opponent(
+        crate::piece::PieceType::Rook,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(4, 6),
+        Colour::Black,
+        vec![
+            Coordinate::new_unchecked(5, 4),
+            Coordinate::new_unchecked(6, 4),
+            Coordinate::new_unchecked(7, 4),
+            Coordinate::new_unchecked(3, 4),
+            Coordinate::new_unchecked(2, 4),
+            Coordinate::new_unchecked(1, 4),
+            Coordinate::new_unchecked(0, 4),
+            Coordinate::new_unchecked(4, 5),
+            Coordinate::new_unchecked(4, 6),
+            Coordinate::new_unchecked(4, 3),
+            Coordinate::new_unchecked(4, 2),
+            Coordinate::new_unchecked(4, 1),
+            Coordinate::new_unchecked(4, 0),
+        ]
+    )]
+    fn sliding_piece_moves_with_blocking(
+        #[case] piece_type: crate::piece::PieceType,
+        #[case] piece_position: Coordinate,
+        #[case] blocking_piece_position: Coordinate,
+        #[case] blocking_piece_colour: Colour,
+        #[case] expected: Vec<Coordinate>,
+    ) {
+        let mut board = Board::empty();
+
+        let player_piece = Piece {
+            piece_type,
+            colour: Colour::White,
+        };
+        board.set_square(piece_position, Some(player_piece));
+
+        let blocker = Piece::pawn(blocking_piece_colour);
+        board.set_square(blocking_piece_position, Some(blocker));
+
+        let moves: Vec<Coordinate> = match piece_type {
+            crate::piece::PieceType::Rook => {
+                board.pseudo_rook_moves(&piece_position).unwrap().collect()
+            }
+            _ => panic!("Piece type not yet supported in test"),
+        };
+
         assert_eq!(moves.len(), expected.len());
         for m in moves {
             assert!(expected.contains(&m));
