@@ -6,7 +6,7 @@ pub(crate) struct Board {
     turn: Colour,
     white_castling: CastlingRights,
     black_castling: CastlingRights,
-    move_list: Vec<(usize, Move)>,
+    move_list: Vec<Move>,
 }
 
 impl Default for Board {
@@ -87,7 +87,7 @@ impl Board {
         todo!()
     }
 
-    fn get_legal_moves(&self) -> Vec<(Piece, Coordinate)> {
+    fn get_legal_moves(&self) -> Vec<Move> {
         todo!()
     }
 
@@ -100,7 +100,7 @@ impl Board {
     }
 
     // FIXME: Should this be infallible, we should be able to leverage get_legal_moves.
-    fn make_move(&mut self, from: Coordinate, to: Coordinate) -> Result<(), &'static str> {
+    fn make_move(&mut self, mv: Move) -> Result<(), &'static str> {
         todo!()
     }
 }
