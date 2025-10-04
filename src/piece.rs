@@ -1,4 +1,4 @@
-use crate::board::{Colour, Coordinate};
+use crate::board::{Board, Colour, Coordinate};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PieceType {
@@ -61,42 +61,52 @@ impl Piece {
 }
 
 trait PieceMovement {
-    fn generate_pseudo_legal_moves(&self, position: Coordinate) -> Vec<Coordinate>;
+    fn generate_pseudo_legal_moves(
+        &self,
+        board: &Board,
+        piece: &Piece,
+        position: Coordinate,
+    ) -> Vec<Coordinate>;
 }
 
 impl PieceMovement for PieceType {
-    fn generate_pseudo_legal_moves(&self, position: Coordinate) -> Vec<Coordinate> {
+    fn generate_pseudo_legal_moves(
+        &self,
+        board: &Board,
+        piece: &Piece,
+        position: Coordinate,
+    ) -> Vec<Coordinate> {
         match self {
-            PieceType::Pawn => psuedo_pawn_moves(position),
-            PieceType::Knight => psuedo_knight_moves(position),
-            PieceType::Bishop => psuedo_bishop_moves(position),
-            PieceType::Rook => psuedo_rook_moves(position),
-            PieceType::Queen => psuedo_queen_moves(position),
-            PieceType::King => psuedo_king_moves(position),
+            PieceType::Pawn => pseudo_pawn_moves(board, piece, position),
+            PieceType::Knight => pseudo_knight_moves(board, piece, position),
+            PieceType::Bishop => pseudo_bishop_moves(board, piece, position),
+            PieceType::Rook => pseudo_rook_moves(board, piece, position),
+            PieceType::Queen => pseudo_queen_moves(board, piece, position),
+            PieceType::King => pseudo_king_moves(board, piece, position),
         }
     }
 }
 
-fn psuedo_pawn_moves(position: Coordinate) -> Vec<Coordinate> {
+fn pseudo_pawn_moves(board: &Board, piece: &Piece, position: Coordinate) -> Vec<Coordinate> {
     todo!()
 }
 
-fn psuedo_knight_moves(position: Coordinate) -> Vec<Coordinate> {
+fn pseudo_knight_moves(board: &Board, piece: &Piece, position: Coordinate) -> Vec<Coordinate> {
     todo!()
 }
 
-fn psuedo_bishop_moves(position: Coordinate) -> Vec<Coordinate> {
+fn pseudo_bishop_moves(board: &Board, piece: &Piece, position: Coordinate) -> Vec<Coordinate> {
     todo!()
 }
 
-fn psuedo_rook_moves(position: Coordinate) -> Vec<Coordinate> {
+fn pseudo_rook_moves(board: &Board, piece: &Piece, position: Coordinate) -> Vec<Coordinate> {
     todo!()
 }
 
-fn psuedo_queen_moves(position: Coordinate) -> Vec<Coordinate> {
+fn pseudo_queen_moves(board: &Board, piece: &Piece, position: Coordinate) -> Vec<Coordinate> {
     todo!()
 }
 
-fn psuedo_king_moves(position: Coordinate) -> Vec<Coordinate> {
+fn pseudo_king_moves(board: &Board, piece: &Piece, position: Coordinate) -> Vec<Coordinate> {
     todo!()
 }
