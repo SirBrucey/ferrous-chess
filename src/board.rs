@@ -61,6 +61,28 @@ impl Board {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) const fn empty() -> Self {
+        Self {
+            squares: [[None; 8]; 8],
+            turn: Colour::White,
+            white_castling: CastlingRights {
+                kingside: false,
+                queenside: false,
+            },
+            black_castling: CastlingRights {
+                kingside: false,
+                queenside: false,
+            },
+            move_list: Vec::new(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_square(&mut self, coord: Coordinate, piece: Option<Piece>) {
+        self.squares[coord.y as usize][coord.x as usize] = piece;
+    }
+
     fn import_from_fen(&mut self, fen: &str) -> Result<(), &'static str> {
         todo!()
     }
@@ -102,8 +124,45 @@ pub(crate) struct Move {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Coordinate {
-    pub(crate) x: u8,
-    pub(crate) y: u8,
+    x: u8,
+    y: u8,
+}
+
+impl Coordinate {
+    pub(crate) const fn new(x: u8, y: u8) -> Result<Self, &'static str> {
+        if x < 8 && y < 8 {
+            Ok(Self::new_unchecked(x, y))
+        } else {
+            Err("Coordinates out of bounds")
+        }
+    }
+
+    pub(crate) const fn new_unchecked(x: u8, y: u8) -> Self {
+        Self { x, y }
+    }
+
+    pub(crate) fn try_apply_delta(&self, (dx, dy): (i8, i8)) -> Result<Coordinate, &'static str> {
+        let new_x = self.x as i8 + dx;
+        let new_y = self.y as i8 + dy;
+        if new_x >= 0 && new_x < 8 && new_y >= 0 && new_y < 8 {
+            Ok(Coordinate {
+                x: new_x as u8,
+                y: new_y as u8,
+            })
+        } else {
+            Err("Resulting coordinates out of bounds")
+        }
+    }
+
+    pub(crate) fn apply_deltas(&self, deltas: impl Iterator<Item = (i8, i8)>) -> Vec<Coordinate> {
+        let mut results = Vec::new();
+        for (dx, dy) in deltas {
+            if let Ok(new_coord) = self.try_apply_delta((dx, dy)) {
+                results.push(new_coord);
+            }
+        }
+        results
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -118,24 +177,5 @@ impl Default for CastlingRights {
             kingside: true,
             queenside: true,
         }
-    }
-}
-
-const fn is_within_bounds(coord: Coordinate) -> bool {
-    coord.x < 8 && coord.y < 8
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rstest::rstest;
-
-    #[rstest]
-    #[case(Coordinate { x: 0, y: 0 }, true)]
-    #[case(Coordinate { x: 7, y: 7 }, true)]
-    #[case(Coordinate { x: 8, y: 0 }, false)]
-    #[case(Coordinate { x: 0, y: 8 }, false)]
-    fn coord_within_bounds(#[case] coord: Coordinate, #[case] expected: bool) {
-        assert_eq!(is_within_bounds(coord), expected);
     }
 }

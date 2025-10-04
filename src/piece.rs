@@ -92,7 +92,17 @@ fn pseudo_pawn_moves(board: &Board, piece: &Piece, position: Coordinate) -> Vec<
 }
 
 fn pseudo_knight_moves(board: &Board, piece: &Piece, position: Coordinate) -> Vec<Coordinate> {
-    todo!()
+    let deltas = [
+        (1, 2),
+        (1, -2),
+        (-1, 2),
+        (-1, -2),
+        (2, 1),
+        (2, -1),
+        (-2, 1),
+        (-2, -1),
+    ];
+    position.apply_deltas(deltas.into_iter())
 }
 
 fn pseudo_bishop_moves(board: &Board, piece: &Piece, position: Coordinate) -> Vec<Coordinate> {
@@ -109,4 +119,92 @@ fn pseudo_queen_moves(board: &Board, piece: &Piece, position: Coordinate) -> Vec
 
 fn pseudo_king_moves(board: &Board, piece: &Piece, position: Coordinate) -> Vec<Coordinate> {
     todo!()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    fn mk_board(piece: Piece, position: Coordinate) -> Board {
+        let mut board = Board::empty();
+        board.set_square(position, Some(piece));
+        board
+    }
+
+    #[rstest]
+    #[case::middle(
+        Coordinate::new_unchecked(4, 4),
+        vec![
+            Coordinate::new_unchecked(5, 6),
+            Coordinate::new_unchecked(5, 2),
+            Coordinate::new_unchecked(3, 6),
+            Coordinate::new_unchecked(3, 2),
+            Coordinate::new_unchecked(6, 5),
+            Coordinate::new_unchecked(6, 3),
+            Coordinate::new_unchecked(2, 5),
+            Coordinate::new_unchecked(2, 3)
+        ]
+    )]
+    #[case::bottom_left(
+        Coordinate::new_unchecked(0, 0),
+        vec![Coordinate::new_unchecked(1, 2), Coordinate::new_unchecked(2, 1)]
+    )]
+    #[case::bottom_edge(
+        Coordinate::new_unchecked(4, 0),
+        vec![
+            Coordinate::new_unchecked(5, 2),
+            Coordinate::new_unchecked(3, 2),
+            Coordinate::new_unchecked(6, 1),
+            Coordinate::new_unchecked(2, 1)
+        ]
+    )]
+    #[case::bottom_right(
+        Coordinate::new_unchecked(7, 0),
+        vec![Coordinate::new_unchecked(6, 2), Coordinate::new_unchecked(5, 1)]
+    )]
+    #[case::left_middle(
+        Coordinate::new_unchecked(0, 4),
+        vec![
+            Coordinate::new_unchecked(1, 6),
+            Coordinate::new_unchecked(1, 2),
+            Coordinate::new_unchecked(2, 5),
+            Coordinate::new_unchecked(2, 3)
+        ]
+    )]
+    #[case::right_middle(
+        Coordinate::new_unchecked(7, 4),
+        vec![
+            Coordinate::new_unchecked(6, 6),
+            Coordinate::new_unchecked(6, 2),
+            Coordinate::new_unchecked(5, 5),
+            Coordinate::new_unchecked(5, 3)
+        ]
+    )]
+    #[case::top_left(
+        Coordinate::new_unchecked(0, 7),
+        vec![Coordinate::new_unchecked(1, 5), Coordinate::new_unchecked(2, 6)]
+    )]
+    #[case::top_edge(
+        Coordinate::new_unchecked(4, 7),
+        vec![
+            Coordinate::new_unchecked(5, 5),
+            Coordinate::new_unchecked(3, 5),
+            Coordinate::new_unchecked(6, 6),
+            Coordinate::new_unchecked(2, 6)
+        ]
+    )]
+    #[case::top_right(
+        Coordinate::new_unchecked(7, 7),
+        vec![Coordinate::new_unchecked(6, 5), Coordinate::new_unchecked(5, 6)]
+    )]
+    fn knight_moves_edge(#[case] start: Coordinate, #[case] expected: Vec<Coordinate>) {
+        let board = mk_board(Piece::knight(Colour::White), start);
+        let piece = Piece::knight(Colour::White);
+        let moves = pseudo_knight_moves(&board, &piece, start);
+        assert_eq!(moves.len(), expected.len());
+        for m in moves {
+            assert!(expected.contains(&m));
+        }
+    }
 }
