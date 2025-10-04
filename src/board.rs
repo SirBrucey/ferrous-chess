@@ -41,7 +41,10 @@ impl Iterator for BoardIterator<'_> {
         if self.row >= 8 {
             return None;
         }
-        let maybe_piece = self.board.squares[self.row][self.col];
+        let current_col = self.col;
+        let current_row = self.row;
+        let maybe_piece = self.board.squares[current_row][current_col];
+
         self.col += 1;
         if self.col >= 8 {
             self.col = 0;
@@ -50,7 +53,7 @@ impl Iterator for BoardIterator<'_> {
 
         Some(maybe_piece.map(|piece| {
             (
-                Coordinate::new_unchecked(self.col as u8 - 1, self.row as u8),
+                Coordinate::new_unchecked(current_col as u8, current_row as u8),
                 piece,
             )
         }))
@@ -157,19 +160,18 @@ impl Board {
         todo!()
     }
 
+    // TODO: This method should validate that moves are for pieces matching self.turn.
+    // Pseudo move methods only validate piece type, not turn order.
     fn get_legal_moves(&self) -> Vec<Move> {
         todo!()
     }
 
-    fn validate_piece_for_move(
+    fn validate_piece_type(
         &self,
         position: &Coordinate,
         expected_piece_type: crate::piece::PieceType,
     ) -> Result<Piece, String> {
         match self.get_square(position) {
-            Some(piece) if piece.colour != self.turn => {
-                Err("Not the turn of the piece at the given position".to_string())
-            }
             Some(piece) if piece.piece_type != expected_piece_type => Err(format!(
                 "The piece at the given position is not a {}",
                 expected_piece_type
@@ -179,10 +181,10 @@ impl Board {
         }
     }
 
-    fn is_valid_destination(&self, coord: &Coordinate) -> bool {
+    fn is_valid_destination(&self, coord: &Coordinate, moving_piece_colour: Colour) -> bool {
         !self
             .get_square(coord)
-            .is_some_and(|piece| piece.colour == self.turn)
+            .is_some_and(|piece| piece.colour == moving_piece_colour)
     }
 
     fn sliding_piece_moves(
@@ -191,13 +193,14 @@ impl Board {
         piece_type: crate::piece::PieceType,
         directions: &[(i8, i8)],
     ) -> Result<Vec<Coordinate>, String> {
-        self.validate_piece_for_move(position, piece_type)?;
+        let piece = self.validate_piece_type(position, piece_type)?;
         Ok(directions
             .iter()
             .flat_map(move |&dir| RayIterator {
                 board: self,
                 current: *position,
                 direction: dir,
+                moving_piece_colour: piece.colour,
                 stopped: false,
             })
             .collect())
@@ -209,10 +212,10 @@ impl Board {
         piece_type: crate::piece::PieceType,
         deltas: &[(i8, i8)],
     ) -> Result<Vec<Coordinate>, String> {
-        self.validate_piece_for_move(position, piece_type)?;
+        let piece = self.validate_piece_type(position, piece_type)?;
         Ok(position
             .apply_deltas(deltas.iter().copied())
-            .filter(|coord| self.is_valid_destination(coord))
+            .filter(|coord| self.is_valid_destination(coord, piece.colour))
             .collect())
     }
 
@@ -229,7 +232,7 @@ impl Board {
     }
 
     fn pseudo_queen_moves(&self, position: &Coordinate) -> Result<Vec<Coordinate>, String> {
-        self.validate_piece_for_move(position, crate::piece::PieceType::Queen)?;
+        let piece = self.validate_piece_type(position, crate::piece::PieceType::Queen)?;
         Ok(ORTHOGONAL_DIRS
             .iter()
             .chain(DIAGONAL_DIRS.iter())
@@ -237,6 +240,7 @@ impl Board {
                 board: self,
                 current: *position,
                 direction: dir,
+                moving_piece_colour: piece.colour,
                 stopped: false,
             })
             .collect())
@@ -247,7 +251,7 @@ impl Board {
     }
 
     fn pseudo_pawn_moves(&self, position: &Coordinate) -> Result<Vec<Coordinate>, String> {
-        let piece = self.validate_piece_for_move(position, crate::piece::PieceType::Pawn)?;
+        let piece = self.validate_piece_type(position, crate::piece::PieceType::Pawn)?;
         let direction = match piece.colour {
             Colour::White => 1,
             Colour::Black => -1,
@@ -294,12 +298,50 @@ impl Board {
         )
     }
 
+    fn pseudo_moves_by_type(
+        &self,
+        position: &Coordinate,
+        piece_type: crate::piece::PieceType,
+    ) -> Result<Vec<Coordinate>, String> {
+        match piece_type {
+            crate::piece::PieceType::Pawn => self.pseudo_pawn_moves(position),
+            crate::piece::PieceType::Knight => self.pseudo_knight_moves(position),
+            crate::piece::PieceType::Bishop => self.pseudo_bishop_moves(position),
+            crate::piece::PieceType::Rook => self.pseudo_rook_moves(position),
+            crate::piece::PieceType::Queen => self.pseudo_queen_moves(position),
+            crate::piece::PieceType::King => self.pseudo_king_moves(position),
+        }
+    }
+
     fn is_board_legal(&self) -> bool {
         todo!()
     }
 
-    fn is_in_check(&self, colour: Colour) -> Result<bool, &'static str> {
-        todo!()
+    fn is_in_check(&self, colour: Colour) -> Result<bool, String> {
+        let (king_pos, opponent_pieces) = self.into_iter().fold(
+            (None, Vec::new()),
+            |(king_pos, mut opponent_pieces), square| {
+                if let Some((coord, piece)) = square {
+                    if piece.colour != colour {
+                        opponent_pieces.push((coord, piece));
+                    } else if piece.piece_type == crate::piece::PieceType::King {
+                        return (Some(coord), opponent_pieces);
+                    }
+                }
+                (king_pos, opponent_pieces)
+            },
+        );
+        let king_pos = match king_pos {
+            Some(pos) => pos,
+            None => return Err("No king found for the given colour".to_string()),
+        };
+        for (coord, piece) in opponent_pieces {
+            let pseudo_moves = self.pseudo_moves_by_type(&coord, piece.piece_type)?;
+            if pseudo_moves.contains(&king_pos) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     // FIXME: Should this be infallible, we should be able to leverage get_legal_moves.
@@ -312,6 +354,7 @@ struct RayIterator<'a> {
     board: &'a Board,
     current: Coordinate,
     direction: (i8, i8),
+    moving_piece_colour: Colour,
     stopped: bool,
 }
 
@@ -328,7 +371,7 @@ impl<'a> Iterator for RayIterator<'a> {
                 self.current = coord;
                 match self.board.get_square(&coord) {
                     // Current square occupied by a piece of the same colour, stop the ray.
-                    Some(piece) if piece.colour == self.board.turn => {
+                    Some(piece) if piece.colour == self.moving_piece_colour => {
                         self.stopped = true;
                         None
                     }
@@ -1629,5 +1672,205 @@ mod tests {
                 (Coordinate::new_unchecked(7, 7), Piece::rook(Colour::Black))
             ]
         );
+    }
+
+    #[rstest]
+    #[case::white_king_checked_by_black_pawn_left(
+        Colour::White,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(3, 5),
+        crate::piece::PieceType::Pawn
+    )]
+    #[case::white_king_checked_by_black_pawn_right(
+        Colour::White,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(5, 5),
+        crate::piece::PieceType::Pawn
+    )]
+    #[case::black_king_checked_by_white_pawn_left(
+        Colour::Black,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(3, 3),
+        crate::piece::PieceType::Pawn
+    )]
+    #[case::black_king_checked_by_white_pawn_right(
+        Colour::Black,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(5, 3),
+        crate::piece::PieceType::Pawn
+    )]
+    #[case::white_king_checked_by_knight(
+        Colour::White,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(5, 6),
+        crate::piece::PieceType::Knight
+    )]
+    #[case::black_king_checked_by_knight(
+        Colour::Black,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(6, 5),
+        crate::piece::PieceType::Knight
+    )]
+    #[case::white_king_checked_by_bishop_diagonal(
+        Colour::White,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(6, 6),
+        crate::piece::PieceType::Bishop
+    )]
+    #[case::black_king_checked_by_bishop_diagonal(
+        Colour::Black,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(2, 2),
+        crate::piece::PieceType::Bishop
+    )]
+    #[case::white_king_checked_by_rook_horizontal(
+        Colour::White,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(7, 4),
+        crate::piece::PieceType::Rook
+    )]
+    #[case::white_king_checked_by_rook_vertical(
+        Colour::White,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(4, 0),
+        crate::piece::PieceType::Rook
+    )]
+    #[case::black_king_checked_by_rook_horizontal(
+        Colour::Black,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(0, 4),
+        crate::piece::PieceType::Rook
+    )]
+    #[case::white_king_checked_by_queen_diagonal(
+        Colour::White,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(7, 7),
+        crate::piece::PieceType::Queen
+    )]
+    #[case::white_king_checked_by_queen_horizontal(
+        Colour::White,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(4, 7),
+        crate::piece::PieceType::Queen
+    )]
+    #[case::black_king_checked_by_queen_diagonal(
+        Colour::Black,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(1, 1),
+        crate::piece::PieceType::Queen
+    )]
+    #[case::white_king_checked_by_king(
+        Colour::White,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(5, 5),
+        crate::piece::PieceType::King
+    )]
+    fn is_in_check_returns_true(
+        #[case] king_colour: Colour,
+        #[case] king_pos: Coordinate,
+        #[case] attacker_pos: Coordinate,
+        #[case] attacker_type: crate::piece::PieceType,
+    ) {
+        let mut board = Board::empty();
+        board.set_square(king_pos, Some(Piece::king(king_colour)));
+
+        let attacker = Piece {
+            piece_type: attacker_type,
+            colour: king_colour.opposite(),
+        };
+        board.set_square(attacker_pos, Some(attacker));
+
+        assert!(board.is_in_check(king_colour).unwrap());
+    }
+
+    #[rstest]
+    #[case::king_alone(Colour::White, Coordinate::new_unchecked(4, 4), vec![])]
+    #[case::king_with_friendly_pieces(
+        Colour::White,
+        Coordinate::new_unchecked(4, 4),
+        vec![
+            (Coordinate::new_unchecked(3, 3), Piece::rook(Colour::White)),
+            (Coordinate::new_unchecked(5, 5), Piece::bishop(Colour::White)),
+        ]
+    )]
+    #[case::enemy_pawn_wrong_diagonal(
+        Colour::White,
+        Coordinate::new_unchecked(4, 4),
+        vec![
+            (Coordinate::new_unchecked(3, 3), Piece::pawn(Colour::Black)),
+        ]
+    )]
+    #[case::enemy_pawn_in_front(
+        Colour::White,
+        Coordinate::new_unchecked(4, 4),
+        vec![
+            (Coordinate::new_unchecked(4, 5), Piece::pawn(Colour::Black)),
+        ]
+    )]
+    #[case::enemy_knight_not_in_range(
+        Colour::White,
+        Coordinate::new_unchecked(4, 4),
+        vec![
+            (Coordinate::new_unchecked(4, 6), Piece::knight(Colour::Black)),
+        ]
+    )]
+    #[case::enemy_rook_blocked(
+        Colour::White,
+        Coordinate::new_unchecked(4, 4),
+        vec![
+            (Coordinate::new_unchecked(4, 7), Piece::rook(Colour::Black)),
+            (Coordinate::new_unchecked(4, 6), Piece::pawn(Colour::Black)),
+        ]
+    )]
+    #[case::enemy_bishop_blocked(
+        Colour::White,
+        Coordinate::new_unchecked(4, 4),
+        vec![
+            (Coordinate::new_unchecked(7, 7), Piece::bishop(Colour::Black)),
+            (Coordinate::new_unchecked(5, 5), Piece::pawn(Colour::White)),
+        ]
+    )]
+    #[case::enemy_queen_blocked(
+        Colour::Black,
+        Coordinate::new_unchecked(4, 4),
+        vec![
+            (Coordinate::new_unchecked(0, 4), Piece::queen(Colour::White)),
+            (Coordinate::new_unchecked(2, 4), Piece::knight(Colour::Black)),
+        ]
+    )]
+    fn is_in_check_returns_false(
+        #[case] king_colour: Colour,
+        #[case] king_pos: Coordinate,
+        #[case] pieces: Vec<(Coordinate, Piece)>,
+    ) {
+        let mut board = Board::empty();
+        board.set_square(king_pos, Some(Piece::king(king_colour)));
+
+        for (pos, piece) in pieces {
+            board.set_square(pos, Some(piece));
+        }
+
+        assert!(!board.is_in_check(king_colour).unwrap());
+    }
+
+    #[test]
+    fn is_in_check_errors_when_no_king() {
+        let board = Board::empty();
+        let result = board.is_in_check(Colour::White);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "No king found for the given colour");
+    }
+
+    #[test]
+    fn is_in_check_with_multiple_attackers() {
+        let mut board = Board::empty();
+        let king_pos = Coordinate::new_unchecked(4, 4);
+        board.set_square(king_pos, Some(Piece::king(Colour::White)));
+
+        // Two black pieces both attacking the king
+        board.set_square(Coordinate::new_unchecked(4, 7), Some(Piece::rook(Colour::Black)));
+        board.set_square(Coordinate::new_unchecked(6, 6), Some(Piece::bishop(Colour::Black)));
+
+        assert!(board.is_in_check(Colour::White).unwrap());
     }
 }
