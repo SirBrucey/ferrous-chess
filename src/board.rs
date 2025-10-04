@@ -126,24 +126,27 @@ impl Board {
         }))
     }
 
-    fn pseudo_pawn_moves(&self, position: &Coordinate) -> Vec<Coordinate> {
-        todo!()
-    }
-
-    fn pseudo_bishop_moves(&self, position: &Coordinate) -> Vec<Coordinate> {
-        todo!()
-    }
-
-    fn pseudo_rook_moves(&self, position: &Coordinate) -> Vec<Coordinate> {
-        todo!()
-    }
-
-    fn pseudo_queen_moves(&self, position: &Coordinate) -> Vec<Coordinate> {
-        todo!()
-    }
-
-    fn pseudo_king_moves(&self, position: &Coordinate) -> Vec<Coordinate> {
-        todo!()
+    fn pseudo_rook_moves(
+        &self,
+        position: &Coordinate,
+    ) -> Result<impl Iterator<Item = Coordinate>, &'static str> {
+        match self.get_square(position) {
+            Some(piece) if piece.colour != self.turn => {
+                return Err("Not the turn of the piece at the given position");
+            }
+            Some(piece) if piece.piece_type != crate::piece::PieceType::Rook => {
+                return Err("The piece at the given position is not a rook");
+            }
+            None => return Err("No piece at the given position"),
+            _ => {}
+        };
+        let vectors = [(1, 0), (-1, 0), (0, 1), (0, -1)];
+        Ok(vectors.into_iter().flat_map(move |dir| RayIterator {
+            board: self,
+            current: *position,
+            direction: dir,
+            stopped: false,
+        }))
     }
 
     fn is_board_legal(&self) -> bool {
@@ -157,6 +160,48 @@ impl Board {
     // FIXME: Should this be infallible, we should be able to leverage get_legal_moves.
     fn make_move(&mut self, mv: Move) -> Result<(), &'static str> {
         todo!()
+    }
+}
+
+struct RayIterator<'a> {
+    board: &'a Board,
+    current: Coordinate,
+    direction: (i8, i8),
+    stopped: bool,
+}
+
+impl<'a> Iterator for RayIterator<'a> {
+    type Item = Coordinate;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.stopped {
+            return None;
+        }
+
+        match self.current.try_apply_delta(self.direction) {
+            Ok(coord) => {
+                self.current = coord;
+                match self.board.get_square(&coord) {
+                    // Current square occupied by a piece of the same colour, stop the ray.
+                    Some(piece) if piece.colour == self.board.turn => {
+                        self.stopped = true;
+                        None
+                    }
+                    // Current square occupied by an opponent's piece, return the coordinate and
+                    // stop the ray.
+                    Some(_) => {
+                        self.stopped = true;
+                        Some(coord)
+                    }
+                    // Current square is empty, return the coordinate and continue the ray.
+                    None => Some(coord),
+                }
+            }
+            Err(_) => {
+                self.stopped = true;
+                None
+            }
+        }
     }
 }
 
@@ -309,9 +354,214 @@ mod tests {
         Coordinate::new_unchecked(7, 7),
         vec![Coordinate::new_unchecked(6, 5), Coordinate::new_unchecked(5, 6)]
     )]
-    fn knight_moves_edge(#[case] start: Coordinate, #[case] expected: Vec<Coordinate>) {
+    fn knight_moves(#[case] start: Coordinate, #[case] expected: Vec<Coordinate>) {
         let board = mk_board(Piece::knight(Colour::White), start);
         let moves: Vec<Coordinate> = board.pseudo_knight_moves(&start).unwrap().collect();
+        assert_eq!(moves.len(), expected.len());
+        for m in moves {
+            assert!(expected.contains(&m));
+        }
+    }
+
+    #[rstest]
+    #[case::middle(
+        Coordinate::new_unchecked(4, 4),
+        vec![
+            // Right
+            Coordinate::new_unchecked(5, 4),
+            Coordinate::new_unchecked(6, 4),
+            Coordinate::new_unchecked(7, 4),
+            // Left
+            Coordinate::new_unchecked(3, 4),
+            Coordinate::new_unchecked(2, 4),
+            Coordinate::new_unchecked(1, 4),
+            Coordinate::new_unchecked(0, 4),
+            // Up
+            Coordinate::new_unchecked(4, 5),
+            Coordinate::new_unchecked(4, 6),
+            Coordinate::new_unchecked(4, 7),
+            // Down
+            Coordinate::new_unchecked(4, 3),
+            Coordinate::new_unchecked(4, 2),
+            Coordinate::new_unchecked(4, 1),
+            Coordinate::new_unchecked(4, 0),
+        ]
+    )]
+    #[case::bottom_left(
+        Coordinate::new_unchecked(0, 0),
+        vec![
+            // Right
+            Coordinate::new_unchecked(1, 0),
+            Coordinate::new_unchecked(2, 0),
+            Coordinate::new_unchecked(3, 0),
+            Coordinate::new_unchecked(4, 0),
+            Coordinate::new_unchecked(5, 0),
+            Coordinate::new_unchecked(6, 0),
+            Coordinate::new_unchecked(7, 0),
+            // Up
+            Coordinate::new_unchecked(0, 1),
+            Coordinate::new_unchecked(0, 2),
+            Coordinate::new_unchecked(0, 3),
+            Coordinate::new_unchecked(0, 4),
+            Coordinate::new_unchecked(0, 5),
+            Coordinate::new_unchecked(0, 6),
+            Coordinate::new_unchecked(0, 7),
+        ]
+    )]
+    #[case::bottom_edge(
+        Coordinate::new_unchecked(4, 0),
+        vec![
+            // Right
+            Coordinate::new_unchecked(5, 0),
+            Coordinate::new_unchecked(6, 0),
+            Coordinate::new_unchecked(7, 0),
+            // Left
+            Coordinate::new_unchecked(3, 0),
+            Coordinate::new_unchecked(2, 0),
+            Coordinate::new_unchecked(1, 0),
+            Coordinate::new_unchecked(0, 0),
+            // Up
+            Coordinate::new_unchecked(4, 1),
+            Coordinate::new_unchecked(4, 2),
+            Coordinate::new_unchecked(4, 3),
+            Coordinate::new_unchecked(4, 4),
+            Coordinate::new_unchecked(4, 5),
+            Coordinate::new_unchecked(4, 6),
+            Coordinate::new_unchecked(4, 7),
+        ]
+    )]
+    #[case::bottom_right(
+        Coordinate::new_unchecked(7, 0),
+        vec![
+            // Left
+            Coordinate::new_unchecked(6, 0),
+            Coordinate::new_unchecked(5, 0),
+            Coordinate::new_unchecked(4, 0),
+            Coordinate::new_unchecked(3, 0),
+            Coordinate::new_unchecked(2, 0),
+            Coordinate::new_unchecked(1, 0),
+            Coordinate::new_unchecked(0, 0),
+            // Up
+            Coordinate::new_unchecked(7, 1),
+            Coordinate::new_unchecked(7, 2),
+            Coordinate::new_unchecked(7, 3),
+            Coordinate::new_unchecked(7, 4),
+            Coordinate::new_unchecked(7, 5),
+            Coordinate::new_unchecked(7, 6),
+            Coordinate::new_unchecked(7, 7),
+        ]
+    )]
+    #[case::left_middle(
+        Coordinate::new_unchecked(0, 4),
+        vec![
+            // Right
+            Coordinate::new_unchecked(1, 4),
+            Coordinate::new_unchecked(2, 4),
+            Coordinate::new_unchecked(3, 4),
+            Coordinate::new_unchecked(4, 4),
+            Coordinate::new_unchecked(5, 4),
+            Coordinate::new_unchecked(6, 4),
+            Coordinate::new_unchecked(7, 4),
+            // Up
+            Coordinate::new_unchecked(0, 5),
+            Coordinate::new_unchecked(0, 6),
+            Coordinate::new_unchecked(0, 7),
+            // Down
+            Coordinate::new_unchecked(0, 3),
+            Coordinate::new_unchecked(0, 2),
+            Coordinate::new_unchecked(0, 1),
+            Coordinate::new_unchecked(0, 0),
+        ]
+    )]
+    #[case::right_middle(
+        Coordinate::new_unchecked(7, 4),
+        vec![
+            // Left
+            Coordinate::new_unchecked(6, 4),
+            Coordinate::new_unchecked(5, 4),
+            Coordinate::new_unchecked(4, 4),
+            Coordinate::new_unchecked(3, 4),
+            Coordinate::new_unchecked(2, 4),
+            Coordinate::new_unchecked(1, 4),
+            Coordinate::new_unchecked(0, 4),
+            // Up
+            Coordinate::new_unchecked(7, 5),
+            Coordinate::new_unchecked(7, 6),
+            Coordinate::new_unchecked(7, 7),
+            // Down
+            Coordinate::new_unchecked(7, 3),
+            Coordinate::new_unchecked(7, 2),
+            Coordinate::new_unchecked(7, 1),
+            Coordinate::new_unchecked(7, 0),
+        ]
+    )]
+    #[case::top_left(
+        Coordinate::new_unchecked(0, 7),
+        vec![
+            // Right
+            Coordinate::new_unchecked(1, 7),
+            Coordinate::new_unchecked(2, 7),
+            Coordinate::new_unchecked(3, 7),
+            Coordinate::new_unchecked(4, 7),
+            Coordinate::new_unchecked(5, 7),
+            Coordinate::new_unchecked(6, 7),
+            Coordinate::new_unchecked(7, 7),
+            // Down
+            Coordinate::new_unchecked(0, 6),
+            Coordinate::new_unchecked(0, 5),
+            Coordinate::new_unchecked(0, 4),
+            Coordinate::new_unchecked(0, 3),
+            Coordinate::new_unchecked(0, 2),
+            Coordinate::new_unchecked(0, 1),
+            Coordinate::new_unchecked(0, 0),
+        ]
+    )]
+    #[case::top_edge(
+        Coordinate::new_unchecked(4, 7),
+        vec![
+            // Right
+            Coordinate::new_unchecked(5, 7),
+            Coordinate::new_unchecked(6, 7),
+            Coordinate::new_unchecked(7, 7),
+            // Left
+            Coordinate::new_unchecked(3, 7),
+            Coordinate::new_unchecked(2, 7),
+            Coordinate::new_unchecked(1, 7),
+            Coordinate::new_unchecked(0, 7),
+            // Down
+            Coordinate::new_unchecked(4, 6),
+            Coordinate::new_unchecked(4, 5),
+            Coordinate::new_unchecked(4, 4),
+            Coordinate::new_unchecked(4, 3),
+            Coordinate::new_unchecked(4, 2),
+            Coordinate::new_unchecked(4, 1),
+            Coordinate::new_unchecked(4, 0),
+        ]
+    )]
+    #[case::top_right(
+        Coordinate::new_unchecked(7, 7),
+        vec![
+            // Left
+            Coordinate::new_unchecked(6, 7),
+            Coordinate::new_unchecked(5, 7),
+            Coordinate::new_unchecked(4, 7),
+            Coordinate::new_unchecked(3, 7),
+            Coordinate::new_unchecked(2, 7),
+            Coordinate::new_unchecked(1, 7),
+            Coordinate::new_unchecked(0, 7),
+            // Down
+            Coordinate::new_unchecked(7, 6),
+            Coordinate::new_unchecked(7, 5),
+            Coordinate::new_unchecked(7, 4),
+            Coordinate::new_unchecked(7, 3),
+            Coordinate::new_unchecked(7, 2),
+            Coordinate::new_unchecked(7, 1),
+            Coordinate::new_unchecked(7, 0),
+        ]
+    )]
+    fn rook_moves(#[case] start: Coordinate, #[case] expected: Vec<Coordinate>) {
+        let board = mk_board(Piece::rook(Colour::White), start);
+        let moves: Vec<Coordinate> = board.pseudo_rook_moves(&start).unwrap().collect();
         assert_eq!(moves.len(), expected.len());
         for m in moves {
             assert!(expected.contains(&m));
