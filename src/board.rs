@@ -270,17 +270,13 @@ impl Board {
                 .filter(|coord| self.get_square(coord).is_none())
                 .into_iter()
                 // Move two squares forward from starting position
-                .chain(
-                    forward_two
-                        .filter(|coord| {
-                            on_starting_rank
-                                && forward_one
-                                    .map(|f| self.get_square(&f).is_none())
-                                    .unwrap_or(false)
-                                && self.get_square(coord).is_none()
-                        })
-                        .into_iter(),
-                )
+                .chain(forward_two.filter(|coord| {
+                    on_starting_rank
+                        && forward_one
+                            .map(|f| self.get_square(&f).is_none())
+                            .unwrap_or(false)
+                        && self.get_square(coord).is_none()
+                }))
                 .chain(
                     // Captures
                     position
@@ -1868,8 +1864,14 @@ mod tests {
         board.set_square(king_pos, Some(Piece::king(Colour::White)));
 
         // Two black pieces both attacking the king
-        board.set_square(Coordinate::new_unchecked(4, 7), Some(Piece::rook(Colour::Black)));
-        board.set_square(Coordinate::new_unchecked(6, 6), Some(Piece::bishop(Colour::Black)));
+        board.set_square(
+            Coordinate::new_unchecked(4, 7),
+            Some(Piece::rook(Colour::Black)),
+        );
+        board.set_square(
+            Coordinate::new_unchecked(6, 6),
+            Some(Piece::bishop(Colour::Black)),
+        );
 
         assert!(board.is_in_check(Colour::White).unwrap());
     }
