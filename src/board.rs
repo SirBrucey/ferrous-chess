@@ -44,6 +44,30 @@ const DEFAULT_BOARD: [[Option<Piece>; 8]; 8] = [
     ],
 ];
 
+// Direction constants for move generation
+const ORTHOGONAL_DIRS: [(i8, i8); 4] = [(1, 0), (-1, 0), (0, 1), (0, -1)];
+const DIAGONAL_DIRS: [(i8, i8); 4] = [(1, 1), (1, -1), (-1, 1), (-1, -1)];
+const KING_DIRS: [(i8, i8); 8] = [
+    (1, 0),
+    (-1, 0),
+    (0, 1),
+    (0, -1),
+    (1, 1),
+    (1, -1),
+    (-1, 1),
+    (-1, -1),
+];
+const KNIGHT_DELTAS: [(i8, i8); 8] = [
+    (1, 2),
+    (1, -2),
+    (-1, 2),
+    (-1, -2),
+    (2, 1),
+    (2, -1),
+    (-2, 1),
+    (-2, -1),
+];
+
 impl Board {
     const fn new() -> Self {
         Self {
@@ -113,54 +137,58 @@ impl Board {
         }
     }
 
+    fn is_valid_destination(&self, coord: &Coordinate) -> bool {
+        !self
+            .get_square(coord)
+            .is_some_and(|piece| piece.colour == self.turn)
+    }
+
+    fn sliding_piece_moves(
+        &self,
+        position: &Coordinate,
+        piece_type: crate::piece::PieceType,
+        directions: &[(i8, i8)],
+    ) -> Result<impl Iterator<Item = Coordinate>, String> {
+        self.validate_piece_for_move(position, piece_type)?;
+        Ok(directions.iter().flat_map(move |&dir| RayIterator {
+            board: self,
+            current: *position,
+            direction: dir,
+            stopped: false,
+        }))
+    }
+
+    fn step_piece_moves(
+        &self,
+        position: &Coordinate,
+        piece_type: crate::piece::PieceType,
+        deltas: &[(i8, i8)],
+    ) -> Result<impl Iterator<Item = Coordinate>, String> {
+        self.validate_piece_for_move(position, piece_type)?;
+        Ok(position
+            .apply_deltas(deltas.iter().copied())
+            .filter(|coord| self.is_valid_destination(coord)))
+    }
+
     fn pseudo_knight_moves(
         &self,
         position: &Coordinate,
     ) -> Result<impl Iterator<Item = Coordinate>, String> {
-        self.validate_piece_for_move(position, crate::piece::PieceType::Knight)?;
-        let deltas = [
-            (1, 2),
-            (1, -2),
-            (-1, 2),
-            (-1, -2),
-            (2, 1),
-            (2, -1),
-            (-2, 1),
-            (-2, -1),
-        ];
-        Ok(position.apply_deltas(deltas.into_iter()).filter(|&coord| {
-            !self
-                .get_square(&coord)
-                .is_some_and(|piece| piece.colour == self.turn)
-        }))
+        self.step_piece_moves(position, crate::piece::PieceType::Knight, &KNIGHT_DELTAS)
     }
 
     fn pseudo_rook_moves(
         &self,
         position: &Coordinate,
     ) -> Result<impl Iterator<Item = Coordinate>, String> {
-        self.validate_piece_for_move(position, crate::piece::PieceType::Rook)?;
-        let vectors = [(1, 0), (-1, 0), (0, 1), (0, -1)];
-        Ok(vectors.into_iter().flat_map(move |dir| RayIterator {
-            board: self,
-            current: *position,
-            direction: dir,
-            stopped: false,
-        }))
+        self.sliding_piece_moves(position, crate::piece::PieceType::Rook, &ORTHOGONAL_DIRS)
     }
 
     fn pseudo_bishop_moves(
         &self,
         position: &Coordinate,
     ) -> Result<impl Iterator<Item = Coordinate>, String> {
-        self.validate_piece_for_move(position, crate::piece::PieceType::Bishop)?;
-        let vectors = [(1, 1), (1, -1), (-1, 1), (-1, -1)];
-        Ok(vectors.into_iter().flat_map(move |dir| RayIterator {
-            board: self,
-            current: *position,
-            direction: dir,
-            stopped: false,
-        }))
+        self.sliding_piece_moves(position, crate::piece::PieceType::Bishop, &DIAGONAL_DIRS)
     }
 
     fn pseudo_queen_moves(
@@ -168,44 +196,22 @@ impl Board {
         position: &Coordinate,
     ) -> Result<impl Iterator<Item = Coordinate>, String> {
         self.validate_piece_for_move(position, crate::piece::PieceType::Queen)?;
-        let vectors = [
-            (1, 0),
-            (-1, 0),
-            (0, 1),
-            (0, -1),
-            (1, 1),
-            (1, -1),
-            (-1, 1),
-            (-1, -1),
-        ];
-        Ok(vectors.into_iter().flat_map(move |dir| RayIterator {
-            board: self,
-            current: *position,
-            direction: dir,
-            stopped: false,
-        }))
+        Ok(ORTHOGONAL_DIRS
+            .iter()
+            .chain(DIAGONAL_DIRS.iter())
+            .flat_map(move |&dir| RayIterator {
+                board: self,
+                current: *position,
+                direction: dir,
+                stopped: false,
+            }))
     }
 
     fn pseudo_king_moves(
         &self,
         position: &Coordinate,
     ) -> Result<impl Iterator<Item = Coordinate>, String> {
-        self.validate_piece_for_move(position, crate::piece::PieceType::King)?;
-        let deltas = [
-            (1, 0),
-            (-1, 0),
-            (0, 1),
-            (0, -1),
-            (1, 1),
-            (1, -1),
-            (-1, 1),
-            (-1, -1),
-        ];
-        Ok(position.apply_deltas(deltas.into_iter()).filter(|&coord| {
-            !self
-                .get_square(&coord)
-                .is_some_and(|piece| piece.colour == self.turn)
-        }))
+        self.step_piece_moves(position, crate::piece::PieceType::King, &KING_DIRS)
     }
 
     fn pseudo_pawn_moves(
