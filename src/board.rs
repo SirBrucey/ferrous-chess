@@ -144,7 +144,7 @@ impl Coordinate {
     pub(crate) fn try_apply_delta(&self, (dx, dy): (i8, i8)) -> Result<Coordinate, &'static str> {
         let new_x = self.x as i8 + dx;
         let new_y = self.y as i8 + dy;
-        if new_x >= 0 && new_x < 8 && new_y >= 0 && new_y < 8 {
+        if (0..8).contains(&new_x) && (0..8).contains(&new_y) {
             Ok(Coordinate {
                 x: new_x as u8,
                 y: new_y as u8,
