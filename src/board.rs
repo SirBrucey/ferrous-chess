@@ -190,14 +190,17 @@ impl Board {
         position: &Coordinate,
         piece_type: crate::piece::PieceType,
         directions: &[(i8, i8)],
-    ) -> Result<impl Iterator<Item = Coordinate>, String> {
+    ) -> Result<Vec<Coordinate>, String> {
         self.validate_piece_for_move(position, piece_type)?;
-        Ok(directions.iter().flat_map(move |&dir| RayIterator {
-            board: self,
-            current: *position,
-            direction: dir,
-            stopped: false,
-        }))
+        Ok(directions
+            .iter()
+            .flat_map(move |&dir| RayIterator {
+                board: self,
+                current: *position,
+                direction: dir,
+                stopped: false,
+            })
+            .collect())
     }
 
     fn step_piece_moves(
@@ -205,38 +208,27 @@ impl Board {
         position: &Coordinate,
         piece_type: crate::piece::PieceType,
         deltas: &[(i8, i8)],
-    ) -> Result<impl Iterator<Item = Coordinate>, String> {
+    ) -> Result<Vec<Coordinate>, String> {
         self.validate_piece_for_move(position, piece_type)?;
         Ok(position
             .apply_deltas(deltas.iter().copied())
-            .filter(|coord| self.is_valid_destination(coord)))
+            .filter(|coord| self.is_valid_destination(coord))
+            .collect())
     }
 
-    fn pseudo_knight_moves(
-        &self,
-        position: &Coordinate,
-    ) -> Result<impl Iterator<Item = Coordinate>, String> {
+    fn pseudo_knight_moves(&self, position: &Coordinate) -> Result<Vec<Coordinate>, String> {
         self.step_piece_moves(position, crate::piece::PieceType::Knight, &KNIGHT_DELTAS)
     }
 
-    fn pseudo_rook_moves(
-        &self,
-        position: &Coordinate,
-    ) -> Result<impl Iterator<Item = Coordinate>, String> {
+    fn pseudo_rook_moves(&self, position: &Coordinate) -> Result<Vec<Coordinate>, String> {
         self.sliding_piece_moves(position, crate::piece::PieceType::Rook, &ORTHOGONAL_DIRS)
     }
 
-    fn pseudo_bishop_moves(
-        &self,
-        position: &Coordinate,
-    ) -> Result<impl Iterator<Item = Coordinate>, String> {
+    fn pseudo_bishop_moves(&self, position: &Coordinate) -> Result<Vec<Coordinate>, String> {
         self.sliding_piece_moves(position, crate::piece::PieceType::Bishop, &DIAGONAL_DIRS)
     }
 
-    fn pseudo_queen_moves(
-        &self,
-        position: &Coordinate,
-    ) -> Result<impl Iterator<Item = Coordinate>, String> {
+    fn pseudo_queen_moves(&self, position: &Coordinate) -> Result<Vec<Coordinate>, String> {
         self.validate_piece_for_move(position, crate::piece::PieceType::Queen)?;
         Ok(ORTHOGONAL_DIRS
             .iter()
@@ -246,20 +238,15 @@ impl Board {
                 current: *position,
                 direction: dir,
                 stopped: false,
-            }))
+            })
+            .collect())
     }
 
-    fn pseudo_king_moves(
-        &self,
-        position: &Coordinate,
-    ) -> Result<impl Iterator<Item = Coordinate>, String> {
+    fn pseudo_king_moves(&self, position: &Coordinate) -> Result<Vec<Coordinate>, String> {
         self.step_piece_moves(position, crate::piece::PieceType::King, &KING_DIRS)
     }
 
-    fn pseudo_pawn_moves(
-        &self,
-        position: &Coordinate,
-    ) -> Result<impl Iterator<Item = Coordinate>, String> {
+    fn pseudo_pawn_moves(&self, position: &Coordinate) -> Result<Vec<Coordinate>, String> {
         let piece = self.validate_piece_for_move(position, crate::piece::PieceType::Pawn)?;
         let direction = match piece.colour {
             Colour::White => 1,
@@ -302,7 +289,8 @@ impl Board {
                 .chain(
                     // FIXME: En passant captures would go here
                     std::iter::empty(),
-                ),
+                )
+                .collect(),
         )
     }
 
@@ -310,7 +298,7 @@ impl Board {
         todo!()
     }
 
-    fn is_in_check(&self, colour: Colour) -> bool {
+    fn is_in_check(&self, colour: Colour) -> Result<bool, &'static str> {
         todo!()
     }
 
@@ -522,7 +510,7 @@ mod tests {
     )]
     fn knight_moves(#[case] start: Coordinate, #[case] expected: Vec<Coordinate>) {
         let board = mk_board(Piece::knight(Colour::White), start);
-        let moves: Vec<Coordinate> = board.pseudo_knight_moves(&start).unwrap().collect();
+        let moves = board.pseudo_knight_moves(&start).unwrap();
         assert_eq!(moves.len(), expected.len());
         for m in moves {
             assert!(expected.contains(&m));
@@ -727,7 +715,7 @@ mod tests {
     )]
     fn rook_moves(#[case] start: Coordinate, #[case] expected: Vec<Coordinate>) {
         let board = mk_board(Piece::rook(Colour::White), start);
-        let moves: Vec<Coordinate> = board.pseudo_rook_moves(&start).unwrap().collect();
+        let moves = board.pseudo_rook_moves(&start).unwrap();
         assert_eq!(moves.len(), expected.len());
         for m in moves {
             assert!(expected.contains(&m));
@@ -867,7 +855,7 @@ mod tests {
     )]
     fn bishop_moves(#[case] start: Coordinate, #[case] expected: Vec<Coordinate>) {
         let board = mk_board(Piece::bishop(Colour::White), start);
-        let moves: Vec<Coordinate> = board.pseudo_bishop_moves(&start).unwrap().collect();
+        let moves = board.pseudo_bishop_moves(&start).unwrap();
         assert_eq!(moves.len(), expected.len());
         for m in moves {
             assert!(expected.contains(&m));
@@ -1157,7 +1145,7 @@ mod tests {
     )]
     fn queen_moves(#[case] start: Coordinate, #[case] expected: Vec<Coordinate>) {
         let board = mk_board(Piece::queen(Colour::White), start);
-        let moves: Vec<Coordinate> = board.pseudo_queen_moves(&start).unwrap().collect();
+        let moves = board.pseudo_queen_moves(&start).unwrap();
         assert_eq!(moves.len(), expected.len());
         for m in moves {
             assert!(expected.contains(&m));
@@ -1252,7 +1240,7 @@ mod tests {
     )]
     fn king_moves(#[case] start: Coordinate, #[case] expected: Vec<Coordinate>) {
         let board = mk_board(Piece::king(Colour::White), start);
-        let moves: Vec<Coordinate> = board.pseudo_king_moves(&start).unwrap().collect();
+        let moves = board.pseudo_king_moves(&start).unwrap();
         assert_eq!(moves.len(), expected.len());
         for m in moves {
             assert!(expected.contains(&m));
@@ -1287,7 +1275,7 @@ mod tests {
         };
         board.set_square(start, Some(Piece::pawn(colour)));
 
-        let moves: Vec<Coordinate> = board.pseudo_pawn_moves(&start).unwrap().collect();
+        let moves = board.pseudo_pawn_moves(&start).unwrap();
         assert_eq!(moves.len(), expected.len());
         for m in moves {
             assert!(expected.contains(&m));
@@ -1335,7 +1323,7 @@ mod tests {
             }),
         );
 
-        let moves: Vec<Coordinate> = board.pseudo_pawn_moves(&start).unwrap().collect();
+        let moves = board.pseudo_pawn_moves(&start).unwrap();
         assert_eq!(moves.len(), 2);
         assert!(moves.contains(&target));
     }
@@ -1369,7 +1357,7 @@ mod tests {
             }),
         );
 
-        let moves: Vec<Coordinate> = board.pseudo_pawn_moves(&start).unwrap().collect();
+        let moves = board.pseudo_pawn_moves(&start).unwrap();
         assert_eq!(moves.len(), 0);
     }
 
@@ -1565,20 +1553,11 @@ mod tests {
         let blocker = Piece::pawn(blocking_piece_colour);
         board.set_square(blocking_piece_position, Some(blocker));
 
-        let moves: Vec<Coordinate> = match piece_type {
-            crate::piece::PieceType::Rook => {
-                board.pseudo_rook_moves(&piece_position).unwrap().collect()
-            }
-            crate::piece::PieceType::Bishop => board
-                .pseudo_bishop_moves(&piece_position)
-                .unwrap()
-                .collect(),
-            crate::piece::PieceType::Queen => {
-                board.pseudo_queen_moves(&piece_position).unwrap().collect()
-            }
-            crate::piece::PieceType::King => {
-                board.pseudo_king_moves(&piece_position).unwrap().collect()
-            }
+        let moves = match piece_type {
+            crate::piece::PieceType::Rook => board.pseudo_rook_moves(&piece_position).unwrap(),
+            crate::piece::PieceType::Bishop => board.pseudo_bishop_moves(&piece_position).unwrap(),
+            crate::piece::PieceType::Queen => board.pseudo_queen_moves(&piece_position).unwrap(),
+            crate::piece::PieceType::King => board.pseudo_king_moves(&piece_position).unwrap(),
             _ => panic!("Piece type not yet supported in test"),
         };
 
