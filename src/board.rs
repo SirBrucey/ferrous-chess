@@ -208,6 +208,56 @@ impl Board {
         }))
     }
 
+    fn pseudo_pawn_moves(
+        &self,
+        position: &Coordinate,
+    ) -> Result<impl Iterator<Item = Coordinate>, String> {
+        let piece = self.validate_piece_for_move(position, crate::piece::PieceType::Pawn)?;
+        let direction = match piece.colour {
+            Colour::White => 1,
+            Colour::Black => -1,
+        };
+        let on_starting_rank = match piece.colour {
+            Colour::White => position.y == 1,
+            Colour::Black => position.y == 6,
+        };
+
+        let forward_one = position.try_apply_delta((0, direction)).ok();
+        let forward_two = position.try_apply_delta((0, 2 * direction)).ok();
+
+        Ok(
+            // Move one square
+            forward_one
+                .filter(|coord| self.get_square(coord).is_none())
+                .into_iter()
+                // Move two squares forward from starting position
+                .chain(
+                    forward_two
+                        .filter(|coord| {
+                            on_starting_rank
+                                && forward_one
+                                    .map(|f| self.get_square(&f).is_none())
+                                    .unwrap_or(false)
+                                && self.get_square(coord).is_none()
+                        })
+                        .into_iter(),
+                )
+                .chain(
+                    // Captures
+                    position
+                        .apply_deltas([(1, direction), (-1, direction)].into_iter())
+                        .filter(move |coord| {
+                            self.get_square(coord)
+                                .is_some_and(|p| p.colour != piece.colour)
+                        }),
+                )
+                .chain(
+                    // FIXME: En passant captures would go here
+                    std::iter::empty(),
+                ),
+        )
+    }
+
     fn is_board_legal(&self) -> bool {
         todo!()
     }
@@ -268,6 +318,15 @@ impl<'a> Iterator for RayIterator<'a> {
 pub(crate) enum Colour {
     White,
     Black,
+}
+
+impl Colour {
+    pub(crate) fn opposite(&self) -> Self {
+        match self {
+            Colour::White => Colour::Black,
+            Colour::Black => Colour::White,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1150,6 +1209,120 @@ mod tests {
         for m in moves {
             assert!(expected.contains(&m));
         }
+    }
+
+    #[rstest]
+    #[case::white_start(
+        Coordinate::new_unchecked(4, 1),
+        Colour::White,
+        vec![
+            Coordinate::new_unchecked(4, 2),
+            Coordinate::new_unchecked(4, 3),
+        ]
+    )]
+    #[case::black_start(
+        Coordinate::new_unchecked(4, 6),
+        Colour::Black,
+        vec![
+            Coordinate::new_unchecked(4, 5),
+            Coordinate::new_unchecked(4, 4),
+        ]
+    )]
+    fn pawn_moves(
+        #[case] start: Coordinate,
+        #[case] colour: Colour,
+        #[case] expected: Vec<Coordinate>,
+    ) {
+        let mut board = Board {
+            turn: colour,
+            ..Default::default()
+        };
+        board.set_square(start, Some(Piece::pawn(colour)));
+
+        let moves: Vec<Coordinate> = board.pseudo_pawn_moves(&start).unwrap().collect();
+        assert_eq!(moves.len(), expected.len());
+        for m in moves {
+            assert!(expected.contains(&m));
+        }
+    }
+
+    #[rstest]
+    #[case::white_left_capture(
+        Coordinate::new_unchecked(4, 4),
+        Colour::White,
+        Coordinate::new_unchecked(3, 5)
+    )]
+    #[case::white_right_capture(
+        Coordinate::new_unchecked(4, 4),
+        Colour::White,
+        Coordinate::new_unchecked(5, 5)
+    )]
+    #[case::black_left_capture(
+        Coordinate::new_unchecked(4, 4),
+        Colour::Black,
+        Coordinate::new_unchecked(3, 3)
+    )]
+    #[case::black_right_capture(
+        Coordinate::new_unchecked(4, 4),
+        Colour::Black,
+        Coordinate::new_unchecked(5, 3)
+    )]
+    fn pawn_move_captures(
+        #[case] start: Coordinate,
+        #[case] colour: Colour,
+        #[case] target: Coordinate,
+    ) {
+        use crate::piece::PieceType;
+
+        let mut board = Board {
+            turn: colour,
+            ..Default::default()
+        };
+        board.set_square(start, Some(Piece::pawn(colour)));
+        board.set_square(
+            target,
+            Some(Piece {
+                piece_type: PieceType::Rook,
+                colour: colour.opposite(),
+            }),
+        );
+
+        let moves: Vec<Coordinate> = board.pseudo_pawn_moves(&start).unwrap().collect();
+        assert_eq!(moves.len(), 2);
+        assert!(moves.contains(&target));
+    }
+
+    #[rstest]
+    #[case::white_blocked_ahead(
+        Coordinate::new_unchecked(4, 4),
+        Colour::White,
+        Coordinate::new_unchecked(4, 5)
+    )]
+    #[case::black_blocked_ahead(
+        Coordinate::new_unchecked(4, 4),
+        Colour::Black,
+        Coordinate::new_unchecked(4, 3)
+    )]
+    fn pawn_move_blocked(
+        #[case] start: Coordinate,
+        #[case] colour: Colour,
+        #[case] blocker: Coordinate,
+    ) {
+        let mut board = Board {
+            turn: colour,
+            ..Default::default()
+        };
+        board.set_square(start, Some(Piece::pawn(colour)));
+        board.set_square(
+            blocker,
+            Some(Piece {
+                piece_type: crate::piece::PieceType::Rook,
+                colour,
+            }),
+        );
+
+        let moves: Vec<Coordinate> = board.pseudo_pawn_moves(&start).unwrap().collect();
+        assert_eq!(moves.len(), 0);
     }
 
     #[rstest]
