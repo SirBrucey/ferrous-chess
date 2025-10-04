@@ -186,6 +186,28 @@ impl Board {
         }))
     }
 
+    fn pseudo_king_moves(
+        &self,
+        position: &Coordinate,
+    ) -> Result<impl Iterator<Item = Coordinate>, String> {
+        self.validate_piece_for_move(position, crate::piece::PieceType::King)?;
+        let deltas = [
+            (1, 0),
+            (-1, 0),
+            (0, 1),
+            (0, -1),
+            (1, 1),
+            (1, -1),
+            (-1, 1),
+            (-1, -1),
+        ];
+        Ok(position.apply_deltas(deltas.into_iter()).filter(|&coord| {
+            !self
+                .get_square(&coord)
+                .is_some_and(|piece| piece.colour == self.turn)
+        }))
+    }
+
     fn is_board_legal(&self) -> bool {
         todo!()
     }
@@ -1036,6 +1058,101 @@ mod tests {
     }
 
     #[rstest]
+    #[case::middle(
+        Coordinate::new_unchecked(4, 4),
+        vec![
+            Coordinate::new_unchecked(3, 3),
+            Coordinate::new_unchecked(3, 4),
+            Coordinate::new_unchecked(3, 5),
+            Coordinate::new_unchecked(4, 3),
+            Coordinate::new_unchecked(4, 5),
+            Coordinate::new_unchecked(5, 3),
+            Coordinate::new_unchecked(5, 4),
+            Coordinate::new_unchecked(5, 5),
+        ]
+    )]
+    #[case::bottom_left(
+        Coordinate::new_unchecked(0, 0),
+        vec![
+            Coordinate::new_unchecked(0, 1),
+            Coordinate::new_unchecked(1, 0),
+            Coordinate::new_unchecked(1, 1),
+        ]
+    )]
+    #[case::bottom_edge(
+        Coordinate::new_unchecked(4, 0),
+        vec![
+            Coordinate::new_unchecked(3, 0),
+            Coordinate::new_unchecked(3, 1),
+            Coordinate::new_unchecked(4, 1),
+            Coordinate::new_unchecked(5, 0),
+            Coordinate::new_unchecked(5, 1),
+        ]
+    )]
+    #[case::bottom_right(
+        Coordinate::new_unchecked(7, 0),
+        vec![
+            Coordinate::new_unchecked(6, 0),
+            Coordinate::new_unchecked(6, 1),
+            Coordinate::new_unchecked(7, 1),
+        ]
+    )]
+    #[case::left_middle(
+        Coordinate::new_unchecked(0, 4),
+        vec![
+            Coordinate::new_unchecked(0, 3),
+            Coordinate::new_unchecked(0, 5),
+            Coordinate::new_unchecked(1, 3),
+            Coordinate::new_unchecked(1, 4),
+            Coordinate::new_unchecked(1, 5),
+        ]
+    )]
+    #[case::right_middle(
+        Coordinate::new_unchecked(7, 4),
+        vec![
+            Coordinate::new_unchecked(6, 3),
+            Coordinate::new_unchecked(6, 4),
+            Coordinate::new_unchecked(6, 5),
+            Coordinate::new_unchecked(7, 3),
+            Coordinate::new_unchecked(7, 5),
+        ]
+    )]
+    #[case::top_left(
+        Coordinate::new_unchecked(0, 7),
+        vec![
+            Coordinate::new_unchecked(0, 6),
+            Coordinate::new_unchecked(1, 6),
+            Coordinate::new_unchecked(1, 7),
+        ]
+    )]
+    #[case::top_edge(
+        Coordinate::new_unchecked(4, 7),
+        vec![
+            Coordinate::new_unchecked(3, 6),
+            Coordinate::new_unchecked(3, 7),
+            Coordinate::new_unchecked(4, 6),
+            Coordinate::new_unchecked(5, 6),
+            Coordinate::new_unchecked(5, 7),
+        ]
+    )]
+    #[case::top_right(
+        Coordinate::new_unchecked(7, 7),
+        vec![
+            Coordinate::new_unchecked(6, 6),
+            Coordinate::new_unchecked(6, 7),
+            Coordinate::new_unchecked(7, 6),
+        ]
+    )]
+    fn king_moves(#[case] start: Coordinate, #[case] expected: Vec<Coordinate>) {
+        let board = mk_board(Piece::king(Colour::White), start);
+        let moves: Vec<Coordinate> = board.pseudo_king_moves(&start).unwrap().collect();
+        assert_eq!(moves.len(), expected.len());
+        for m in moves {
+            assert!(expected.contains(&m));
+        }
+    }
+
+    #[rstest]
     #[case::rook_blocked_by_friendly(
         crate::piece::PieceType::Rook,
         Coordinate::new_unchecked(2, 2),
@@ -1194,6 +1311,21 @@ mod tests {
             Coordinate::new_unchecked(6, 0),
         ]
     )]
+    #[case::king_blocked_by_friendly(
+        crate::piece::PieceType::King,
+        Coordinate::new_unchecked(4, 4),
+        Coordinate::new_unchecked(5, 5),
+        Colour::White,
+        vec![
+            Coordinate::new_unchecked(3, 3),
+            Coordinate::new_unchecked(3, 4),
+            Coordinate::new_unchecked(3, 5),
+            Coordinate::new_unchecked(4, 3),
+            Coordinate::new_unchecked(4, 5),
+            Coordinate::new_unchecked(5, 3),
+            Coordinate::new_unchecked(5, 4),
+        ]
+    )]
     fn sliding_piece_moves_with_blocking(
         #[case] piece_type: crate::piece::PieceType,
         #[case] piece_position: Coordinate,
@@ -1222,6 +1354,9 @@ mod tests {
                 .collect(),
             crate::piece::PieceType::Queen => {
                 board.pseudo_queen_moves(&piece_position).unwrap().collect()
+            }
+            crate::piece::PieceType::King => {
+                board.pseudo_king_moves(&piece_position).unwrap().collect()
             }
             _ => panic!("Piece type not yet supported in test"),
         };
