@@ -95,20 +95,28 @@ impl Board {
         todo!()
     }
 
+    fn validate_piece_for_move(
+        &self,
+        position: &Coordinate,
+        expected_piece_type: crate::piece::PieceType,
+    ) -> Result<Piece, String> {
+        match self.get_square(position) {
+            Some(piece) if piece.colour != self.turn => {
+                Err("Not the turn of the piece at the given position".to_string())
+            }
+            Some(piece) if piece.piece_type != expected_piece_type => {
+                Err(format!("The piece at the given position is not a {}", expected_piece_type))
+            }
+            Some(piece) => Ok(piece),
+            None => Err("No piece at the given position".to_string()),
+        }
+    }
+
     fn pseudo_knight_moves(
         &self,
         position: &Coordinate,
-    ) -> Result<impl Iterator<Item = Coordinate>, &'static str> {
-        match self.get_square(position) {
-            Some(piece) if piece.colour != self.turn => {
-                return Err("Not the turn of the piece at the given position");
-            }
-            Some(piece) if piece.piece_type != crate::piece::PieceType::Knight => {
-                return Err("The piece at the given position is not a knight");
-            }
-            None => return Err("No piece at the given position"),
-            _ => {}
-        };
+    ) -> Result<impl Iterator<Item = Coordinate>, String> {
+        self.validate_piece_for_move(position, crate::piece::PieceType::Knight)?;
         let deltas = [
             (1, 2),
             (1, -2),
@@ -129,17 +137,8 @@ impl Board {
     fn pseudo_rook_moves(
         &self,
         position: &Coordinate,
-    ) -> Result<impl Iterator<Item = Coordinate>, &'static str> {
-        match self.get_square(position) {
-            Some(piece) if piece.colour != self.turn => {
-                return Err("Not the turn of the piece at the given position");
-            }
-            Some(piece) if piece.piece_type != crate::piece::PieceType::Rook => {
-                return Err("The piece at the given position is not a rook");
-            }
-            None => return Err("No piece at the given position"),
-            _ => {}
-        };
+    ) -> Result<impl Iterator<Item = Coordinate>, String> {
+        self.validate_piece_for_move(position, crate::piece::PieceType::Rook)?;
         let vectors = [(1, 0), (-1, 0), (0, 1), (0, -1)];
         Ok(vectors.into_iter().flat_map(move |dir| RayIterator {
             board: self,
